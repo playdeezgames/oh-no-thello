@@ -42,6 +42,15 @@ Sound :: enum i32 {
 	Boom,
 }
 
+// Keyboard and gamepad commands; the page maps keys and buttons to these.
+Action :: enum i32 {
+	Up,
+	Down,
+	Left,
+	Right,
+	Confirm,
+}
+
 Phase :: enum {
 	Title,
 	Playing,
@@ -55,6 +64,8 @@ Game :: struct {
 	booms:    [board.SIZE][board.SIZE]f32, // seconds of explosion animation left
 	note:     string, // a short message such as a forced pass
 	note_t:   f32,
+	cursor:   [2]int, // board cell for keyboard and gamepad play
+	cursor_on: bool, // drawn only after a key or button press; a mouse click hides it
 	sounds:   [8]Sound,
 	n_sounds: int,
 }
@@ -74,6 +85,7 @@ start :: proc(g: ^Game) {
 	g.b = board.new_board()
 	board.place_mines(&g.b, MINES)
 	g.ai_wait = AI_DELAY
+	g.cursor = {3, 2} // one of Black's four opening moves
 }
 
 queue_sound :: proc(g: ^Game, s: Sound) {
@@ -167,8 +179,26 @@ update :: proc(g: ^Game, dt: f32) {
 	}
 }
 
+// A key or gamepad command. Moving the cursor never plays; Confirm does.
+input :: proc(g: ^Game, a: Action) {
+	g.cursor_on = true
+	if g.phase != .Playing {
+		if a == .Confirm {start(g)}
+		return
+	}
+	switch a {
+	case .Up:    g.cursor.y = max(g.cursor.y - 1, 0)
+	case .Down:  g.cursor.y = min(g.cursor.y + 1, board.SIZE - 1)
+	case .Left:  g.cursor.x = max(g.cursor.x - 1, 0)
+	case .Right: g.cursor.x = min(g.cursor.x + 1, board.SIZE - 1)
+	case .Confirm:
+		if g.b.turn == HUMAN {make_move(g, g.cursor.x, g.cursor.y)}
+	}
+}
+
 // A tap or click at logical pixel (px, py).
 click :: proc(g: ^Game, px, py: int) {
+	g.cursor_on = false
 	switch g.phase {
 	case .Title, .Over:
 		start(g)

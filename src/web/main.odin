@@ -22,6 +22,7 @@ WHITE :: 0xf2f2f2
 DIM :: 0x9ab8a2
 GOLD :: 0xf5d33f
 BACKDROP :: 0x0d2a18
+STAR :: 0x0a1f12
 
 ctx: runtime.Context
 state: game.Game
@@ -35,6 +36,12 @@ main :: proc() {
 click :: proc "c" (x, y: i32) {
 	context = ctx
 	game.click(&state, int(x), int(y))
+}
+
+@(export)
+input :: proc "c" (action: i32) {
+	context = ctx
+	game.input(&state, game.Action(action))
 }
 
 @(export)
@@ -88,6 +95,24 @@ draw :: proc() {
 		}
 	}
 
+	// The four star points of a Reversi board, where grid lines cross (3x3 dots).
+	for k in ([2]int{2, 6}) {
+		for m in ([2]int{2, 6}) {
+			cx := game.BOARD_X + k * game.TILE - 1
+			cy := game.BOARD_Y + m * game.TILE - 1
+			fill_rect(f32(cx - 1), f32(cy - 1), 3, 3, STAR, 1)
+		}
+	}
+
+	if g.cursor_on && g.phase == .Playing {
+		cx := f32(game.BOARD_X + g.cursor.x * game.TILE)
+		cy := f32(game.BOARD_Y + g.cursor.y * game.TILE)
+		fill_rect(cx, cy, game.TILE - 1, 1, GOLD, 1)
+		fill_rect(cx, cy + game.TILE - 2, game.TILE - 1, 1, GOLD, 1)
+		fill_rect(cx, cy, 1, game.TILE - 1, GOLD, 1)
+		fill_rect(cx + game.TILE - 2, cy, 1, game.TILE - 1, GOLD, 1)
+	}
+
 	switch g.phase {
 	case .Title:
 		fill_rect(0, 0, game.LOGICAL_W, game.LOGICAL_H, 0x000000, 0.62)
@@ -98,7 +123,7 @@ draw :: proc() {
 		draw_text(72, 130, "A disc shows how many are", DIM, 1, true)
 		draw_text(72, 140, "next to it. Place one on a", DIM, 1, true)
 		draw_text(72, 150, "mine and 3x3 blows up!", DIM, 1, true)
-		draw_text(72, 168, "tap to start", WHITE, 1, true)
+		draw_text(72, 168, "tap, click or press Enter", WHITE, 1, true)
 	case .Playing, .Over:
 		me := board.count_discs(b, game.HUMAN)
 		ai := board.count_discs(b, board.opponent(game.HUMAN))
@@ -120,7 +145,7 @@ draw :: proc() {
 			msg = g.note
 			colour = GOLD
 		} else if human_turn {
-			msg = "your move"
+			msg = state.cursor_on ? "your move (Enter places)" : "your move"
 		} else {
 			msg = "white is thinking..."
 			colour = DIM

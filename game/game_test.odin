@@ -50,3 +50,35 @@ sounds_queue_in_order :: proc(t: ^testing.T) {
 	_, ok = take_sound(&g)
 	testing.expect(t, !ok)
 }
+
+@(test)
+cursor_moves_clamps_and_confirm_plays :: proc(t: ^testing.T) {
+	g := title()
+	input(&g, .Confirm) // starts the game
+	testing.expect_value(t, g.phase, Phase.Playing)
+	for &row in g.b.cells {
+		for &c in row {c.mine = false}
+	}
+	testing.expect_value(t, g.cursor, [2]int{3, 2})
+	input(&g, .Left)
+	testing.expect_value(t, g.cursor, [2]int{2, 2})
+	input(&g, .Down) // (2,3) is a legal opening move
+	input(&g, .Confirm)
+	testing.expect_value(t, g.b.turn, board.Disc.White)
+	for _ in 0 ..< 20 {input(&g, .Up)}
+	for _ in 0 ..< 20 {input(&g, .Left)}
+	testing.expect_value(t, g.cursor, [2]int{0, 0})
+	for _ in 0 ..< 20 {input(&g, .Down)}
+	for _ in 0 ..< 20 {input(&g, .Right)}
+	testing.expect_value(t, g.cursor, [2]int{7, 7})
+}
+
+@(test)
+confirm_on_illegal_cell_does_nothing :: proc(t: ^testing.T) {
+	g := title()
+	start(&g)
+	g.cursor = {0, 0}
+	input(&g, .Confirm)
+	testing.expect_value(t, g.b.turn, board.Disc.Black)
+	testing.expect_value(t, board.count_discs(&g.b, .Black), 2)
+}

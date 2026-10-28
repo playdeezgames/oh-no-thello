@@ -30,6 +30,10 @@ tools/test.sh           # native tests for board/ and game/
 python3 -m http.server -d build/web 8000   # wasm must be served over http, not file://
 ```
 
+GitHub Pages: the repo is public and Pages serves `main` `/docs`. `tools/pages.sh` rebuilds `docs/` (shipping build); commit it and push to update https://playdeezgames.github.io/oh-no-thello/ (see the bok's `Tech/GitHub Pages.md`).
+
+Input: the page maps mouse/touch to `click`, and keys and gamepad to `input` (`game.Action`; order must match `ACTION` in `web/index.html`).
+
 Test files carry `#+build !js` (`core:testing` pulls in `core:os`, which panics on wasm). Always run the wasm build as well as the tests.
 
 ## Architecture conventions to follow
