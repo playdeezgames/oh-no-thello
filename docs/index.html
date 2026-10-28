@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oh No, Thello!</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { image-rendering: pixelated; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="screen" width="144" height="176"></canvas>
+<script type="text/javascript" src="odin.js"></script>
+<script>
+  const cv = document.getElementById("screen");
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  const css = (rgb) => "#" + (rgb >>> 0).toString(16).padStart(6, "0");
+  const atlas = new Image();
+  atlas.src = "art.png";
+  const SPRITE = 16;
+
+  // Whole-number zoom keeps the pixel art crisp.
+  const fit = () => {
+    const z = Math.max(1, Math.floor(Math.min(innerWidth / cv.width, innerHeight / cv.height)));
+    cv.style.width = cv.width * z + "px";
+    cv.style.height = cv.height * z + "px";
+  };
+  addEventListener("resize", fit);
+  fit();
+
+  // Bitmap font: m5x7, ASCII 32..126 in a 16x6 grid of 8x9 cells, 7 rows above the baseline.
+  const FONT_W = 8, FONT_H = 9, FONT_BASE = 7;
+  const font = new Image();
+  font.src = "font.png";
+  const fontAdvance = [];
+  const fontTinted = new Map();
+  font.onload = () => {
+    const probe = document.createElement("canvas");
+    probe.width = font.width; probe.height = font.height;
+    const pc = probe.getContext("2d");
+    pc.drawImage(font, 0, 0);
+    const px = pc.getImageData(0, 0, font.width, font.height).data;
+    for (let i = 0; i < 95; i++) {
+      const cx = (i % 16) * FONT_W, cy = Math.floor(i / 16) * FONT_H;
+      let right = -1;
+      for (let x = 0; x < FONT_W; x++)
+        for (let y = 0; y < FONT_H; y++)
+          if (px[((cy + y) * font.width + cx + x) * 4 + 3] > 0) right = Math.max(right, x);
+      fontAdvance[i] = right < 0 ? 3 : right + 2; // ink plus one pixel of spacing
+    }
+  };
+  // The sheet tinted to one colour, cached (white ink painted over with source-in).
+  const tintedFont = (rgb) => {
+    let c = fontTinted.get(rgb);
+    if (!c) {
+      c = document.createElement("canvas");
+      c.width = font.width; c.height = font.height;
+      const g = c.getContext("2d");
+      g.drawImage(font, 0, 0);
+      g.globalCompositeOperation = "source-in";
+      g.fillStyle = css(rgb);
+      g.fillRect(0, 0, c.width, c.height);
+      fontTinted.set(rgb, c);
+    }
+    return c;
+  };
+  const drawBitmapText = (x, y, str, rgb, scale, centered) => {
+    if (!fontAdvance.length) return; // font not decoded yet
+    const idx = (ch) => { const i = ch.charCodeAt(0) - 32; return i >= 0 && i < 95 ? i : 0; };
+    let width = 0;
+    for (const ch of str) width += fontAdvance[idx(ch)] * scale;
+    let px = Math.round(centered ? x - width / 2 : x);
+    px = Math.max(1, Math.min(px, cv.width - 1 - width)); // keep the text on screen
+    const top = Math.round(y) - FONT_BASE * scale;
+    const sheet = tintedFont(rgb);
+    for (const ch of str) {
+      const i = idx(ch);
+      ctx.drawImage(sheet, (i % 16) * FONT_W, Math.floor(i / 16) * FONT_H, FONT_W, FONT_H,
+                    px, top, FONT_W * scale, FONT_H * scale);
+      px += fontAdvance[i] * scale;
+    }
+  };
+  // Order must match `Sound` in src/game/game.odin.
+  const SOUND_FILES = ["sfx/place.wav", "sfx/flip.wav", "sfx/win.wav", "sfx/lose.wav", "sfx/boom.wav"];
+  const sounds = [];
+  let audio = null;
+  const unlock = () => {
+    if (audio) return;
+    try {
+      audio = new (window.AudioContext || window.webkitAudioContext)();
+      SOUND_FILES.forEach((f, i) => fetch(f).then(r => r.arrayBuffer())
+        .then(b => audio.decodeAudioData(b)).then(buf => { sounds[i] = buf; }).catch(() => {}));
+    } catch (e) { audio = null; }
+  };
+  addEventListener("pointerdown", unlock);
+  const memory = new odin.WasmMemoryInterface();
+
+  // A tap or click, in the canvas's logical pixels.
+  cv.addEventListener("pointerdown", (e) => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) * cv.width / r.width);
+    const y = Math.floor((e.clientY - r.top) * cv.height / r.height);
+    if (memory.exports && memory.exports.click) memory.exports.click(x, y);
+  });
+
+  odin.runWasm("game.wasm", null, {
+    canvas: {
+      fill_rect: (x, y, w, h, rgb, alpha) => {
+        ctx.globalAlpha = alpha; ctx.fillStyle = css(rgb); ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1;
+      },
+      blit: (sprite, x, y, alpha) => {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(atlas, sprite * SPRITE, 0, SPRITE, SPRITE, Math.round(x), Math.round(y), SPRITE, SPRITE);
+        ctx.globalAlpha = 1;
+      },
+      play_sound: (id) => {
+        if (!audio || !sounds[id]) return;
+        const src = audio.createBufferSource();
+        src.buffer = sounds[id];
+        const gain = audio.createGain();
+        gain.gain.value = 0.3;
+        src.connect(gain).connect(audio.destination);
+        src.start();
+      },
+      draw_text: (x, y, ptr, len, rgb, scale, centered) => {
+        drawBitmapText(x, y, memory.loadString(ptr, len), rgb, scale, centered);
+      },
+    },
+  }, memory);
+</script>
+</body>
+</html>
