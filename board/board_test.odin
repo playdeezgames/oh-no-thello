@@ -1,3 +1,4 @@
+#+build !js
 package board
 
 import "core:testing"

@@ -4,7 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Oh No, Thello!** is a browser game, a mashup of Reversi (Othello) and Minesweeper, written in Odin, compiled to `js_wasm32`, and published on itch.io. As of this writing the repo holds only `README.md`; there is no source, build or test setup yet. Everything below is the plan inherited from the user's other SPLORR!! games, not something already in this repo. Update this file as the real layout appears.
+**Oh No, Thello!** is a browser game, a mashup of Reversi (Othello) and Minesweeper, written in Odin, compiled to `js_wasm32`, and published on itch.io. Rules are in `DESIGN.md` (user decisions are marked there). Tasks are in Coxswain project `oh-no-thello`.
+
+## Layout
+
+- `board/`: pure Reversi + mine logic (`play`, `place_mines`, explosions). No JS, no `core:os`.
+- `game/`: game state, AI, turn flow, sound queue; imports `ont:board`. Still no drawing or JS.
+- `src/web/`: the wasm entry point (`#+build js`): drawing and input only, calls `game`. Packages are imported through the `ont` collection (`-collection:ont=.`).
+- `web/index.html`: canvas shim (sprites from `art.png`, m5x7 bitmap text, WebAudio sfx, tap to `click`).
+- `assets/art/world.json` is the Anvil export (source copy `~/anvil-worlds/oh-no-thello.json`); `tools/gen_atlas.py` packs its sprites into `build/web/art.png` in sprite-set order, which must match `Sprite` in `game/game.odin`. `assets/sfx/*.wav` are Anvil PLAY-text sounds; the order must match `Sound` and `SOUND_FILES` in `web/index.html`. To change art or sound: edit in Anvil, re-export, rebuild.
 
 ## External resources (outside this repo)
 
@@ -12,17 +20,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Anvil** (MCP server `mcp__anvil-prod__*`): use it to create assets (sprites, tilesets, maps, palettes, sounds).
 - **Coxswain** (MCP server `mcp__coxswain__*`): task management and ship scheduling. Register as agent **`oh-no-thello`** (`agent_register`) and claim/complete tasks through it.
 
-## Build and run (Odin, per the vault's recipe)
+## Build and run
 
 Odin is at `/home/yermom/.local/bin/odin` (`dev-2026-07`).
 
 ```bash
-odin build src -target:js_wasm32 -out:build/web/game.wasm -o:speed
-cp "$(odin root)/core/sys/wasm/js/odin.js" build/web/
+tools/build.sh          # builds build/web (use --size for the shipping build)
+tools/test.sh           # native tests for board/ and game/
 python3 -m http.server -d build/web 8000   # wasm must be served over http, not file://
 ```
 
-Native tests: `odin test . -define:ODIN_TEST_THREADS=1` (single-threaded, since game state tends to be global). Run the wasm build as well as the tests; native tests cannot catch wasm-only failures.
+Test files carry `#+build !js` (`core:testing` pulls in `core:os`, which panics on wasm). Always run the wasm build as well as the tests.
 
 ## Architecture conventions to follow
 
