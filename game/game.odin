@@ -1,7 +1,6 @@
 // Game state and rules glue. No drawing and no JS: the web layer reads this and draws it.
 package game
 
-import "core:math/rand"
 import "ont:board"
 
 LOGICAL_W :: 144
@@ -9,6 +8,13 @@ LOGICAL_H :: 176
 TILE :: 16
 BOARD_X :: 8
 BOARD_Y :: 24
+
+// Title screen buttons (logical pixels): Random game, then Daily puzzle.
+BTN_X :: 12
+BTN_W :: 120
+BTN_H :: 16
+BTN_Y0 :: 108
+BTN_Y1 :: 128
 
 MINES :: 8
 AI_DELAY :: 0.6
@@ -64,6 +70,15 @@ Game :: struct {
 	booms:    [board.SIZE][board.SIZE]f32, // seconds of explosion animation left
 	note:     string, // a short message such as a forced pass
 	note_t:   f32,
+	rng:      board.Rng, // the AI's tie-breaks; seeded like the mines, so a daily game replays exactly
+	daily:    bool, // this game is the daily puzzle
+	seed:     u64, // the seed this game was dealt from
+	menu:     int, // title selection: 0 random game, 1 daily puzzle
+	today:    u64, // today's date as YYYYMMDD; set by the platform
+	best:     int, // best score (your discs at the end) on today's daily puzzle; 0 = not played; set by the platform
+	new_best: bool, // this game beat `best`
+	save_best: bool, // the platform should store `best` for `today`, then clear this
+	clock:    u64, // any changing number (a timestamp); set by the platform, seeds random games
 	cursor:   [2]int, // board cell for keyboard and gamepad play
 	cursor_on: bool, // drawn only after a key or button press; a mouse click hides it
 	sounds:   [8]Sound,
@@ -79,13 +94,29 @@ title :: proc() -> Game {
 	return g
 }
 
-start :: proc(g: ^Game) {
+// Deal a game. The same seed always gives the same mines, and the AI breaks its
+// ties from the same stream, so the daily puzzle plays out the same way each time.
+start :: proc(g: ^Game, seed: u64, daily: bool) {
+	menu, today, clock, best := g.menu, g.today, g.clock, g.best
 	g^ = {}
+	g.menu, g.today, g.clock, g.best = menu, today, clock, best
 	g.phase = .Playing
+	g.daily = daily
+	g.seed = seed
+	g.rng = board.rng_seed(seed)
 	g.b = board.new_board()
-	board.place_mines(&g.b, MINES)
+	board.place_mines(&g.b, MINES, &g.rng)
 	g.ai_wait = AI_DELAY
 	g.cursor = {3, 2} // one of Black's four opening moves
+}
+
+// Start whatever the title menu has selected.
+start_selected :: proc(g: ^Game) {
+	if g.menu == 1 {
+		start(g, g.today, true)
+	} else {
+		start(g, g.clock, false)
+	}
 }
 
 queue_sound :: proc(g: ^Game, s: Sound) {
@@ -134,12 +165,15 @@ make_move :: proc(g: ^Game, x, y: int) -> bool {
 		me := board.count_discs(&g.b, HUMAN)
 		ai := board.count_discs(&g.b, board.opponent(HUMAN))
 		queue_sound(g, me >= ai ? .Win : .Lose)
+		if g.daily && me > g.best {
+			g.best, g.new_best, g.save_best = me, true, true
+		}
 	}
 	return true
 }
 
 // Greedy: most flips, with a bonus for corners. It cannot see mines.
-ai_choose :: proc(b: ^board.Board) -> (x, y: int, ok: bool) {
+ai_choose :: proc(b: ^board.Board, r: ^board.Rng) -> (x, y: int, ok: bool) {
 	best := -1
 	ties := 0
 	for cy in 0 ..< board.SIZE {
@@ -154,7 +188,7 @@ ai_choose :: proc(b: ^board.Board) -> (x, y: int, ok: bool) {
 				x, y, ok = cx, cy, true
 			} else if score == best {
 				ties += 1
-				if rand.int_max(ties) == 0 {x, y = cx, cy}
+				if board.rng_int(r, ties) == 0 {x, y = cx, cy}
 			}
 		}
 	}
@@ -174,7 +208,7 @@ update :: proc(g: ^Game, dt: f32) {
 	if g.phase == .Playing && g.b.turn != HUMAN {
 		g.ai_wait -= dt
 		if g.ai_wait <= 0 {
-			if x, y, ok := ai_choose(&g.b); ok {make_move(g, x, y)}
+			if x, y, ok := ai_choose(&g.b, &g.rng); ok {make_move(g, x, y)}
 		}
 	}
 }
@@ -182,9 +216,18 @@ update :: proc(g: ^Game, dt: f32) {
 // A key or gamepad command. Moving the cursor never plays; Confirm does.
 input :: proc(g: ^Game, a: Action) {
 	g.cursor_on = true
-	if g.phase != .Playing {
-		if a == .Confirm {start(g)}
+	switch g.phase {
+	case .Title:
+		switch a {
+		case .Up, .Left:     g.menu = 0
+		case .Down, .Right:  g.menu = 1
+		case .Confirm:       start_selected(g)
+		}
 		return
+	case .Over:
+		if a == .Confirm {g.phase = .Title}
+		return
+	case .Playing:
 	}
 	switch a {
 	case .Up:    g.cursor.y = max(g.cursor.y - 1, 0)
@@ -200,8 +243,16 @@ input :: proc(g: ^Game, a: Action) {
 click :: proc(g: ^Game, px, py: int) {
 	g.cursor_on = false
 	switch g.phase {
-	case .Title, .Over:
-		start(g)
+	case .Title:
+		if px < BTN_X || px >= BTN_X + BTN_W {return}
+		switch {
+		case py >= BTN_Y0 && py < BTN_Y0 + BTN_H: g.menu = 0
+		case py >= BTN_Y1 && py < BTN_Y1 + BTN_H: g.menu = 1
+		case: return
+		}
+		start_selected(g)
+	case .Over:
+		g.phase = .Title
 	case .Playing:
 		if g.b.turn != HUMAN {return}
 		x := (px - BOARD_X) / TILE

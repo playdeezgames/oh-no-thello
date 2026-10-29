@@ -1,7 +1,5 @@
 package board
 
-import "core:math/rand"
-
 SIZE :: 8
 
 Disc :: enum u8 {
@@ -56,17 +54,49 @@ new_board :: proc() -> Board {
 	return b
 }
 
-// Scatter mines, never on the four starting squares. Retries are capped, so
-// fewer than `count` mines may be placed on a crowded board. Returns how many.
-place_mines :: proc(b: ^Board, count: int) -> int {
-	placed := 0
-	for _ in 0 ..< 1000 {
-		if placed >= count {break}
-		x := rand.int_max(SIZE)
-		y := rand.int_max(SIZE)
-		if is_start_square(x, y) || b.cells[y][x].mine {continue}
-		b.cells[y][x].mine = true
-		placed += 1
+// A small seeded generator (splitmix64). It is defined here, not taken from
+// core:math/rand, so a seed gives the same sequence on every platform and every
+// Odin version: the daily puzzle depends on that.
+Rng :: struct {
+	state: u64,
+}
+
+rng_seed :: proc(seed: u64) -> Rng {
+	return Rng{state = seed}
+}
+
+rng_next :: proc(r: ^Rng) -> u64 {
+	r.state += 0x9E3779B97F4A7C15
+	z := r.state
+	z = (z ~ (z >> 30)) * 0xBF58476D1CE4E5B9
+	z = (z ~ (z >> 27)) * 0x94D049BB133111EB
+	return z ~ (z >> 31)
+}
+
+// A number in [0, n).
+rng_int :: proc(r: ^Rng, n: int) -> int {
+	return int(rng_next(r) % u64(n))
+}
+
+// Scatter exactly `count` mines (fewer only if the board has no room), never on
+// the four starting squares. Same generator state, same mines. Returns how many.
+place_mines :: proc(b: ^Board, count: int, r: ^Rng) -> int {
+	spots: [SIZE * SIZE][2]int
+	n := 0
+	for y in 0 ..< SIZE {
+		for x in 0 ..< SIZE {
+			if !is_start_square(x, y) {
+				spots[n] = {x, y}
+				n += 1
+			}
+		}
+	}
+	placed := min(count, n)
+	// Partial Fisher-Yates: the first `placed` entries are a uniform random pick.
+	for i in 0 ..< placed {
+		j := i + rng_int(r, n - i)
+		spots[i], spots[j] = spots[j], spots[i]
+		b.cells[spots[i].y][spots[i].x].mine = true
 	}
 	return placed
 }

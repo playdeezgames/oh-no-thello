@@ -32,6 +32,10 @@ python3 -m http.server -d build/web 8000   # wasm must be served over http, not 
 
 GitHub Pages: the repo is public and Pages serves `main` `/docs`. `tools/pages.sh` rebuilds `docs/` (shipping build); commit it and push to update https://playdeezgames.github.io/oh-no-thello/ (see the bok's `Tech/GitHub Pages.md`).
 
+Daily puzzle: the page supplies today's local date as `YYYYMMDD` (`today_seed` import); `game.start(g, seed, daily)` deals from it. All randomness in board setup and the AI goes through `board.Rng` (splitmix64), never `core:math/rand`, so a seed always replays identically; do not change it without updating the pinned test.
+
+Daily best score: `game` sets `best`/`save_best`; the page stores it via `load_best`/`save_best` in `localStorage` (`oh-no-thello:daily-best`), pruned to the newest 30 dates (`BEST_DAYS` in `web/index.html`).
+
 Input: the page maps mouse/touch to `click`, and keys and gamepad to `input` (`game.Action`; order must match `ACTION` in `web/index.html`).
 
 Test files carry `#+build !js` (`core:testing` pulls in `core:os`, which panics on wasm). Always run the wasm build as well as the tests.

@@ -3,6 +3,7 @@
 package main
 
 import "base:runtime"
+import "core:time"
 import "ont:board"
 import "ont:game"
 
@@ -16,6 +17,11 @@ foreign canvas {
 	play_sound :: proc(sound: i32) ---
 	// Bitmap text (m5x7). y is the baseline; scale is a whole number; x is the centre when centered.
 	draw_text :: proc(x, y: f32, text: string, rgb: u32, scale: i32, centered: bool) ---
+	// Today's local date as YYYYMMDD (for example 20261029): the daily puzzle's seed.
+	today_seed :: proc() -> i32 ---
+	// The best daily score stored for that date (0 if none), and storing one.
+	load_best :: proc(date: i32) -> i32 ---
+	save_best :: proc(date, score: i32) ---
 }
 
 WHITE :: 0xf2f2f2
@@ -30,6 +36,9 @@ state: game.Game
 main :: proc() {
 	ctx = context
 	state = game.title()
+	state.today = u64(today_seed())
+	state.clock = u64(time.now()._nsec)
+	state.best = int(load_best(i32(state.today)))
 }
 
 @(export)
@@ -47,7 +56,16 @@ input :: proc "c" (action: i32) {
 @(export)
 step :: proc(dt: f64, c: runtime.Context) -> bool {
 	context = ctx
+	if today := u64(today_seed()); today != state.today {
+		state.today = today // the date rolled over while the page stayed open
+		state.best = int(load_best(i32(today)))
+	}
+	state.clock = u64(time.now()._nsec)
 	game.update(&state, f32(dt))
+	if state.save_best {
+		save_best(i32(state.today), i32(state.best))
+		state.save_best = false
+	}
 	for {
 		s, ok := game.take_sound(&state)
 		if !ok {break}
@@ -116,14 +134,19 @@ draw :: proc() {
 	switch g.phase {
 	case .Title:
 		fill_rect(0, 0, game.LOGICAL_W, game.LOGICAL_H, 0x000000, 0.62)
-		draw_text(72, 52, "OH NO,", GOLD, 3, true)
-		draw_text(72, 80, "THELLO!", GOLD, 3, true)
-		draw_text(72, 100, "reversi + minesweeper", WHITE, 1, true)
-		draw_text(72, 120, "8 mines hide in the board.", DIM, 1, true)
-		draw_text(72, 130, "A disc shows how many are", DIM, 1, true)
-		draw_text(72, 140, "next to it. Place one on a", DIM, 1, true)
-		draw_text(72, 150, "mine and 3x3 blows up!", DIM, 1, true)
-		draw_text(72, 168, "tap, click or press Enter", WHITE, 1, true)
+		draw_text(72, 44, "OH NO,", GOLD, 3, true)
+		draw_text(72, 72, "THELLO!", GOLD, 3, true)
+		draw_text(72, 92, "reversi + minesweeper", WHITE, 1, true)
+		button(game.BTN_Y0, "RANDOM GAME", g.menu == 0)
+		today: [32]u8
+		label := fmt_daily(&today, int(g.today))
+		button(game.BTN_Y1, label, g.menu == 1)
+		if g.best > 0 {
+			draw_text(72, 148, "today's best:", DIM, 1, true)
+			draw_num(g.best, 108, 148)
+		}
+		draw_text(72, 156, "Discs count touching mines.", DIM, 1, true)
+		draw_text(72, 166, "A mine blast clears 3x3!", DIM, 1, true)
 	case .Playing, .Over:
 		me := board.count_discs(b, game.HUMAN)
 		ai := board.count_discs(b, board.opponent(game.HUMAN))
@@ -137,9 +160,9 @@ draw :: proc() {
 		if g.phase == .Over {
 			colour = GOLD
 			switch {
-			case me > ai: msg = "YOU WIN! tap to replay"
-			case me < ai: msg = "WHITE WINS. tap to replay"
-			case: msg = "A DRAW. tap to replay"
+			case me > ai: msg = "YOU WIN! tap to continue"
+			case me < ai: msg = "WHITE WINS. tap to continue"
+			case: msg = "A DRAW. tap to continue"
 			}
 		} else if g.note != "" {
 			msg = g.note
@@ -150,7 +173,17 @@ draw :: proc() {
 			msg = "white is thinking..."
 			colour = DIM
 		}
-		draw_text(72, 168, msg, colour, 1, true)
+		draw_text(72, 171, msg, colour, 1, true)
+		if g.daily {
+			dbuf: [32]u8
+			draw_text(8, 161, fmt_daily(&dbuf, int(g.seed)), DIM, 1, false)
+			if g.new_best {
+				draw_text(104, 161, "NEW HI!", GOLD, 1, false)
+			} else {
+				draw_text(104, 161, "HI", DIM, 1, false)
+				draw_num(g.best, 120, 161)
+			}
+		}
 	}
 }
 
@@ -169,4 +202,39 @@ draw_num :: proc(n: int, x, y: f32) {
 		v /= 10
 	}
 	draw_text(x, y, string(buf[i:]), WHITE, 1, false)
+}
+
+// "DAILY 20261029" written into buf.
+fmt_daily :: proc(buf: ^[32]u8, date: int) -> string {
+	prefix := "DAILY "
+	n := copy(buf[:], prefix)
+	digits: [24]u8
+	n += copy(buf[n:], fmt_num(&digits, date))
+	return string(buf[:n])
+}
+
+fmt_num :: proc(buf: ^[24]u8, n: int) -> string {
+	i := len(buf)
+	v := n
+	if v == 0 {
+		i -= 1
+		buf[i] = '0'
+	}
+	for v > 0 && i > 0 {
+		i -= 1
+		buf[i] = u8('0' + v % 10)
+		v /= 10
+	}
+	return string(buf[i:])
+}
+
+button :: proc(y: int, label: string, selected: bool) {
+	fill_rect(game.BTN_X, f32(y), game.BTN_W, game.BTN_H, selected ? 0x2a7a45 : 0x164a29, 0.95)
+	if selected {
+		fill_rect(game.BTN_X, f32(y), game.BTN_W, 1, GOLD, 1)
+		fill_rect(game.BTN_X, f32(y + game.BTN_H - 1), game.BTN_W, 1, GOLD, 1)
+		fill_rect(game.BTN_X, f32(y), 1, game.BTN_H, GOLD, 1)
+		fill_rect(game.BTN_X + game.BTN_W - 1, f32(y), 1, game.BTN_H, GOLD, 1)
+	}
+	draw_text(72, f32(y + 12), label, selected ? GOLD : WHITE, 1, true)
 }

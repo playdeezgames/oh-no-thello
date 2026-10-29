@@ -10,6 +10,10 @@ Reversi (Othello) on an 8x8 board with hidden mines. Decisions below marked **(u
 - **Hints (user):** every cell holding a disc shows how many mines are adjacent to it. Empty cells show nothing. Counts reflect mines still in play, so they drop after an explosion.
 - Opponent: simple AI. **(user)** One human vs computer; hotseat is a possible later addition.
 
+## Daily puzzle
+
+The title offers **Random game** and **Daily puzzle**. The daily seed is the player's local date as a number (`YYYYMMDD`, for example 20261029 on October 29, 2026). The seed alone decides the mines: `board.place_mines` shuffles the 60 non-starting squares with a built-in splitmix64 generator (`board.Rng`, not `core:math/rand`) and takes the first 8, so it is identical on every platform and Odin version. The AI breaks ties from the same seeded stream, so the whole game replays the same way. `daily_board_is_pinned` in `board/board_test.odin` pins the 20261029 layout; changing the algorithm changes every past puzzle, so only do it on purpose. The score is your disc count when the game ends. The best score per date is kept in `localStorage` (key `oh-no-thello:daily-best`) and only the newest 30 dates are kept, so the record is bounded. The title and the daily HUD show the best (`HI`, or `NEW HI!` when beaten).
+
 ## Defaults to confirm
 
 - Board 8x8, about 8 mines (tune by playtesting).

@@ -147,6 +147,8 @@
   };
   requestAnimationFrame(pollPad);
 
+  const BEST_KEY = 'oh-no-thello:daily-best';
+  const BEST_DAYS = 30;
   odin.runWasm("game.wasm", null, {
     canvas: {
       fill_rect: (x, y, w, h, rgb, alpha) => {
@@ -156,6 +158,27 @@
         ctx.globalAlpha = alpha;
         ctx.drawImage(atlas, sprite * SPRITE, 0, SPRITE, SPRITE, Math.round(x), Math.round(y), SPRITE, SPRITE);
         ctx.globalAlpha = 1;
+      },
+      // Local calendar date as YYYYMMDD, so everyone in a time zone shares that day's puzzle.
+      today_seed: () => {
+        const d = new Date();
+        return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+      },
+      // Best daily scores live in localStorage under a game-specific key. Only the
+      // newest BEST_DAYS dates are kept, so the record never grows without bound.
+      load_best: (date) => {
+        try { return (JSON.parse(localStorage.getItem(BEST_KEY)) || {})[date] || 0; } catch (e) { return 0; }
+      },
+      save_best: (date, score) => {
+        try {
+          let all = {};
+          try { all = JSON.parse(localStorage.getItem(BEST_KEY)) || {}; } catch (e) {}
+          all[date] = Math.max(score, all[date] || 0);
+          const keep = Object.keys(all).sort().slice(-BEST_DAYS);
+          const out = {};
+          for (const k of keep) out[k] = all[k];
+          localStorage.setItem(BEST_KEY, JSON.stringify(out));
+        } catch (e) {}
       },
       play_sound: (id) => {
         if (!audio || !sounds[id]) return;

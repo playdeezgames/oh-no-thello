@@ -93,9 +93,10 @@ pass_keeps_turn :: proc(t: ^testing.T) {
 
 @(test)
 mines_avoid_start_squares :: proc(t: ^testing.T) {
-	for _ in 0 ..< 200 {
+	for seed in 0 ..< u64(200) {
 		b := new_board()
-		placed := place_mines(&b, 8)
+		r := rng_seed(seed)
+		placed := place_mines(&b, 8, &r)
 		testing.expect_value(t, placed, 8)
 		for y in 3 ..= 4 {
 			for x in 3 ..= 4 {
@@ -108,8 +109,42 @@ mines_avoid_start_squares :: proc(t: ^testing.T) {
 @(test)
 place_mines_caps_when_full :: proc(t: ^testing.T) {
 	b := new_board()
-	placed := place_mines(&b, 100) // only 60 squares are eligible
-	testing.expect(t, placed <= 60)
+	r := rng_seed(1)
+	placed := place_mines(&b, 100, &r) // only 60 squares are eligible
+	testing.expect_value(t, placed, 60)
+}
+
+// One bit per square, bit y*SIZE+x set when it holds a mine.
+mine_mask :: proc(seed: u64) -> (mask: u64) {
+	b := new_board()
+	r := rng_seed(seed)
+	place_mines(&b, 8, &r)
+	for y in 0 ..< SIZE {
+		for x in 0 ..< SIZE {
+			if b.cells[y][x].mine {mask |= u64(1) << uint(y * SIZE + x)}
+		}
+	}
+	return
+}
+
+@(test)
+same_seed_same_board :: proc(t: ^testing.T) {
+	testing.expect_value(t, mine_mask(20261029), mine_mask(20261029))
+	testing.expect(t, mine_mask(20261029) != mine_mask(20261030))
+}
+
+// Pins the daily puzzle for 20261029: if this changes, every player's board for
+// that day changes too, so only edit it on purpose.
+@(test)
+daily_board_is_pinned :: proc(t: ^testing.T) {
+	testing.expect_value(t, mine_mask(20261029), u64(562960691888962))
+}
+
+@(test)
+rng_known_values :: proc(t: ^testing.T) {
+	r := rng_seed(0)
+	testing.expect_value(t, rng_next(&r), u64(0xE220A8397B1DCDAF)) // splitmix64 reference, seed 0
+	testing.expect_value(t, rng_next(&r), u64(0x6E789E6AA1B965F4))
 }
 
 @(test)
