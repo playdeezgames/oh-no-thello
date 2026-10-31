@@ -110,6 +110,13 @@ start :: proc(g: ^Game, seed: u64, daily: bool) {
 	g.cursor = {3, 2} // one of Black's four opening moves
 }
 
+// Back to the title with a clean board, so the finished game does not show through it.
+to_title :: proc(g: ^Game) {
+	g.phase = .Title
+	g.b = board.new_board()
+	g.booms = {}
+}
+
 // Start whatever the title menu has selected.
 start_selected :: proc(g: ^Game) {
 	if g.menu == 1 {
@@ -225,7 +232,7 @@ input :: proc(g: ^Game, a: Action) {
 		}
 		return
 	case .Over:
-		if a == .Confirm {g.phase = .Title}
+		if a == .Confirm {to_title(g)}
 		return
 	case .Playing:
 	}
@@ -252,7 +259,7 @@ click :: proc(g: ^Game, px, py: int) {
 		}
 		start_selected(g)
 	case .Over:
-		g.phase = .Title
+		to_title(g)
 	case .Playing:
 		if g.b.turn != HUMAN {return}
 		x := (px - BOARD_X) / TILE

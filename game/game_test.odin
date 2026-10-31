@@ -42,7 +42,7 @@ daily_puzzle_is_the_same_every_time :: proc(t: ^testing.T) {
 	b.menu = 1
 	start_selected(&b)
 	testing.expect_value(t, mines_of(&a), mines_of(&b))
-	testing.expect_value(t, mines_of(&a), u64(562960691888962))
+	testing.expect_value(t, mines_of(&a), u64(6756498952716856))
 	b.today = 20261030
 	start_selected(&b)
 	testing.expect(t, mines_of(&a) != mines_of(&b))
@@ -95,8 +95,13 @@ game_over_returns_to_title :: proc(t: ^testing.T) {
 	g := title()
 	start(&g, 1, false)
 	g.phase = .Over
+	g.b.cells[0][0].disc = .Black // leftovers of the finished game
+	g.booms[0][0] = 1
 	click(&g, 70, 90)
 	testing.expect_value(t, g.phase, Phase.Title)
+	testing.expect_value(t, g.b.cells[0][0].disc, board.Disc.None)
+	testing.expect_value(t, g.booms[0][0], f32(0))
+	testing.expect_value(t, mines_of(&g), u64(0))
 }
 
 @(test)

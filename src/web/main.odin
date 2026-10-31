@@ -142,11 +142,15 @@ draw :: proc() {
 		label := fmt_daily(&today, int(g.today))
 		button(game.BTN_Y1, label, g.menu == 1)
 		if g.best > 0 {
-			draw_text(72, 148, "today's best:", DIM, 1, true)
-			draw_num(g.best, 108, 148)
+			prefix := "today's best: "
+			bbuf: [48]u8
+			digits: [24]u8
+			n := copy(bbuf[:], prefix)
+			n += copy(bbuf[n:], fmt_num(&digits, g.best))
+			draw_text(72, 154, string(bbuf[:n]), DIM, 1, true)
 		}
-		draw_text(72, 156, "Discs count touching mines.", DIM, 1, true)
-		draw_text(72, 166, "A mine blast clears 3x3!", DIM, 1, true)
+		draw_text(72, 164, "Discs count touching mines.", DIM, 1, true)
+		draw_text(72, 173, "A mine blast clears 3x3!", DIM, 1, true)
 	case .Playing, .Over:
 		me := board.count_discs(b, game.HUMAN)
 		ai := board.count_discs(b, board.opponent(game.HUMAN))
