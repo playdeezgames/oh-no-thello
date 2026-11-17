@@ -1,6 +1,6 @@
 # itch.io page copy: Oh No, Thello!
 
-Page: https://thegrumpygamedev.itch.io/oh-no-thello (**not created yet**, November 17, 2026; the slug is a guess until the page exists, and `TARGET` in `tools/ship.sh` must match it).
+Page: https://thegrumpygamedev.itch.io/oh-no-thello (created as a **Draft** November 17, 2026, game id 5387353, edit page https://itch.io/game/edit/5387353; `TARGET` in `tools/ship.sh` matches the slug). Already set on the draft: title, short description, Kind HTML, Released, No payments, the page text below, embed "Click to launch in fullscreen" with mobile friendly, AI disclosure Yes (code), cover, and the four screenshots in order. Still to do on ship day: upload the build, tick "played in the browser", the Pages external link, then Public.
 Written November 17, 2026 for the first itch.io release (Coxswain ship 25, November 18, 2026). Pasted in by hand; nothing here is published by the repo. Cover: `assets/cover.png` (630 by 500, made by `tools/make_shots.sh`). Screenshots: `assets/screenshots/` (same script).
 
 Page settings: Kind of project HTML; tick "This file will be played in the browser"; embed "Click to launch in fullscreen"; mobile friendly. External link "Latest version (GitHub Pages)": https://playdeezgames.github.io/oh-no-thello/

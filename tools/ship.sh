@@ -2,8 +2,8 @@
 # Prepares the itch.io build: tests, a size-optimised web build, a zip. Pushes ONLY with --push. Never commits,
 # never deletes anything but its own zip. Usage: tools/ship.sh [--push]
 #
-# Page: https://thegrumpygamedev.itch.io/oh-no-thello (NOT created yet, November 17, 2026; the slug is a guess
-# until the page exists: fix TARGET if itch gives it another one). butler cannot create a page.
+# Page: https://thegrumpygamedev.itch.io/oh-no-thello (created as a draft November 17, 2026, game id 5387353;
+# the slug is confirmed, so TARGET is right). butler cannot create a page.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 TARGET="thegrumpygamedev/oh-no-thello:html"

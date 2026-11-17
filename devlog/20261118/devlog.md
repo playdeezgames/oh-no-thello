@@ -1,10 +1,10 @@
 # Oh No, Thello! is on itch.io
 
-*Draft for November 18, 2026 (not for the post: this line). Post type: Major update or launch. The picture is the page's blast screenshot (`03-boom.png`); link itch's hosted copy once the screenshots are uploaded rather than uploading it again.*
+*Draft for November 18, 2026 (not for the post: this line). Post type: Major update or launch. The picture is itch's hosted copy of the page's blast screenshot (`03-boom.png`, checked by SHA-256 November 17, 2026).*
 
 Oh No, Thello! has been playable on GitHub Pages since October 28. Today it gets a page here too.
 
-![A mine goes off](03-boom.png)
+![A mine goes off](https://img.itch.zone/aW1hZ2UvNTM4NzM1My8zMjQyNzQwMi5wbmc=/original/JympWq.png)
 
 It is Reversi against the computer, with eight mines hidden under the board. Every disc shows how many mines touch its square. Place a disc on a mine and your move still counts, flips and all, and then that square and the eight around it blow up, taking every disc with them. Neither you nor the computer can see where the mines are; only the numbers give them away.
 
