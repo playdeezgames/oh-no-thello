@@ -7,7 +7,7 @@ opt=speed
 mkdir -p build/web/sfx
 odin build src/web -collection:ont=. -target:js_wasm32 -out:build/web/game.wasm -o:$opt -vet-shadowing -vet-unused
 cp "$(odin root)/core/sys/wasm/js/odin.js" build/web/
-cp web/index.html build/web/
+cp web/index.html web/lootlocker.js build/web/
 cp assets/font/m5x7.png build/web/font.png
 python3 tools/gen_atlas.py assets/art/world.json build/web/art.png
 cp assets/sfx/*.wav build/web/sfx/
